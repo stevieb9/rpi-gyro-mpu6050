@@ -2,3 +2,15 @@ Revision history for RPi-Gyro-MPU6050
 
 0.01 UNREL
     - Auto generated distribution with Dist::Mgr
+    - Added the OO Perl interface; pure Perl, with the I2C transport
+      provided by RPi::I2C
+    - Added accel(), gyro(), temp(), tilt(), accel_range(), gyro_range(),
+      calibrate_gyro(), gyro_offsets(), sleep(), wake(), reset(),
+      register() and close()
+    - Added hardware-free parameter validation and mocked register file
+      logic test suites
+    - Added examples/imu.pl and examples/tilt.pl
+    - Added the TECHNICAL INFORMATION POD section with the MPU-6050
+      register map, scaling tables, sample rate/filter, clocking and
+      power details
+    - Limited CI to Linux runners; RPi::I2C is a Linux-only XS dependency

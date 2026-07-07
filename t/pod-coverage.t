@@ -21,4 +21,8 @@ eval "use Pod::Coverage $min_pc";
 plan skip_all => "Pod::Coverage $min_pc required for testing POD coverage"
     if $@;
 
+# RPi::I2C is a compiled, Linux-only transport; satisfying its require
+# lets the module load for coverage analysis on any machine
+$INC{'RPi/I2C.pm'} = __FILE__;
+
 all_pod_coverage_ok();

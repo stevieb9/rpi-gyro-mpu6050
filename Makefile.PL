@@ -9,6 +9,7 @@ my %WriteMakefileArgs = (
     VERSION_FROM     => 'lib/RPi/Gyro/MPU6050.pm',
     ABSTRACT_FROM    => 'lib/RPi/Gyro/MPU6050.pm',
     LICENSE          => 'artistic_2',
+    PL_FILES         => {},
     MIN_PERL_VERSION => '5.006',
     META_MERGE => {
         'meta-spec' => { version => 2 },
@@ -30,8 +31,7 @@ my %WriteMakefileArgs = (
         'Test::More' => '0',
     },
     PREREQ_PM => {
-        #'ABC'              => '1.6',
-        #'Foo::Bar::Module' => '5.0401',
+        'RPi::I2C' => 3.1801,
     },
     dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean => { FILES => 'RPi-Gyro-MPU6050-*' },
