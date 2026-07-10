@@ -5,6 +5,7 @@ use warnings;
 
 use Carp qw(croak);
 use RPi::I2C;
+use RPi::Gyro::MPU6050::Deadband;
 
 our $VERSION = '0.01';
 
@@ -109,6 +110,14 @@ sub close {
     $self->{i2c} = undef;
 
     return 0;
+}
+sub deadband {
+    my ($self, %args) = @_;
+
+    # Convenience factory for a RPi::Gyro::MPU6050::Deadband filter, so callers
+    # can build one straight off the sensor object. The filter is standalone
+    # and reads no hardware - see RPi::Gyro::MPU6050::Deadband.
+    return RPi::Gyro::MPU6050::Deadband->new(%args);
 }
 sub gyro {
     my ($self, $axis) = @_;
@@ -658,6 +667,18 @@ automatically on C<DESTROY>. The chip keeps running - call L</sleep>
 first if you want it powered down.
 
 Takes no parameters. I<Returns>: C<0>.
+
+=head2 deadband
+
+Convenience factory that returns a new L<RPi::Gyro::MPU6050::Deadband> filter,
+so you can build one straight off the sensor object without a separate C<use>.
+The filter is a standalone, hardware-free helper that reports only once a noisy
+reading has B<meaningfully> changed - handy for feeding C<gyro()> / C<accel()>
+/ C<temp()> values through so a consumer (a display, a log, a network push) can
+skip work while the sensor is essentially still. Compose one per axis.
+
+Takes the same parameters as L<RPi::Gyro::MPU6050::Deadband/new>
+(C<threshold>, C<window>) and returns the new filter object.
 
 =head1 TECHNICAL INFORMATION
 

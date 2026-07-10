@@ -14,3 +14,10 @@ Revision history for RPi-Gyro-MPU6050
       register map, scaling tables, sample rate/filter, clocking and
       power details
     - Limited CI to Linux runners; RPi::I2C is a Linux-only XS dependency
+    - Added RPi::Gyro::MPU6050::Deadband, a standalone hardware-free filter
+      that reports only when a noisy reading has meaningfully changed
+      (windowed smoothing + a +/- threshold with hysteresis), plus a
+      deadband() convenience factory on the sensor object and t/15-deadband.t
+    - Added examples/gyro_oled.pl (streams readings to an SSD1306 OLED) and
+      examples/gyro_deadband_oled.pl (the same, but deadband-gated so the panel
+      repaints only on real motion)

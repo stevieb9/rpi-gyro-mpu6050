@@ -1,11 +1,13 @@
 Changes
 lib/RPi/Gyro/MPU6050.pm
+lib/RPi/Gyro/MPU6050/Deadband.pm
 Makefile.PL
 MANIFEST			This list of files
 MANIFEST.SKIP
 t/00-load.t
 t/05-params.t
 t/10-logic.t
+t/15-deadband.t
 t/manifest.t
 t/pod-coverage.t
 t/pod.t
