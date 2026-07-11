@@ -685,15 +685,15 @@ Takes the same parameters as L<RPi::Gyro::MPU6050::Deadband/new>
 =head2 DEVICE SPECIFICS
 
     - 3-axis gyroscope, 3-axis accelerometer, die temperature sensor
-    - a 16-bit ADC behind every axis
-    - gyro full-scale: +/-250, 500, 1000 or 2000 deg/s
-    - accel full-scale: +/-2, 4, 8 or 16 g
-    - programmable low-pass filter, sample rate divider, 1024 byte FIFO
-    - interrupt pin (data ready, motion detection, FIFO overflow)
-    - auxiliary I2C master port for hanging a magnetometer off the chip
+    - A 16-bit ADC behind every axis
+    - Gyro full-scale: +/-250, 500, 1000 or 2000 deg/s
+    - Accel full-scale: +/-2, 4, 8 or 16 g
+    - Programmable low-pass filter, sample rate divider, 1024 byte FIFO
+    - Interrupt pin (data ready, motion detection, FIFO overflow)
+    - Auxiliary I2C master port for hanging a magnetometer off the chip
     - I2C up to 400 kHz; address 0x68 or 0x69 (the MPU-6000 adds SPI)
-    - supply 2.375-3.46 V at roughly 4 mA all-on; separate VLOGIC pin
-    - powers up asleep, at +/-2 g and +/-250 deg/s, on its internal
+    - Supply 2.375-3.46 V at roughly 4 mA all-on; separate VLOGIC pin
+    - Powers up asleep, at +/-2 g and +/-250 deg/s, on its internal
       8 MHz oscillator
 
 Wiring a GY-521 breakout to the Pi: VCC to 3.3v (the board's onboard
@@ -776,28 +776,28 @@ down individual gyro and accel axes.
 
 =head2 REGISTER MAP
 
-    0x0D-0x10   SELF_TEST_*        factory trim values for self-test
-    0x19        SMPLRT_DIV         sample rate divider
+    0x0D-0x10   SELF_TEST_*        Factory trim values for self-test
+    0x19        SMPLRT_DIV         Sample rate divider
     0x1A        CONFIG             FSYNC pin and low-pass filter config
-    0x1B        GYRO_CONFIG        gyro self-test and full-scale range
-    0x1C        ACCEL_CONFIG       accel self-test and full-scale range
-    0x1F        MOT_THR            motion detection threshold
-    0x23        FIFO_EN            which sensors feed the FIFO
-    0x24-0x36   I2C_MST/SLV*       auxiliary I2C master and slaves 0-4
-    0x37-0x3A   INT_*              interrupt pin config, enables, status
-    0x3B-0x40   ACCEL_*OUT         accelerometer measurements
-    0x41-0x42   TEMP_OUT           temperature measurement
-    0x43-0x48   GYRO_*OUT          gyroscope measurements
-    0x49-0x60   EXT_SENS_DATA      auxiliary slave read results
-    0x63-0x67   I2C_SLV*_DO        auxiliary slave writes and delays
-    0x68        SIGNAL_PATH_RESET  per-sensor signal path resets
-    0x69        MOT_DETECT_CTRL    motion detection timing
+    0x1B        GYRO_CONFIG        Gyro self-test and full-scale range
+    0x1C        ACCEL_CONFIG       Accel self-test and full-scale range
+    0x1F        MOT_THR            Motion detection threshold
+    0x23        FIFO_EN            Which sensors feed the FIFO
+    0x24-0x36   I2C_MST/SLV*       Auxiliary I2C master and slaves 0-4
+    0x37-0x3A   INT_*              Interrupt pin config, enables, status
+    0x3B-0x40   ACCEL_*OUT         Accelerometer measurements
+    0x41-0x42   TEMP_OUT           Temperature measurement
+    0x43-0x48   GYRO_*OUT          Gyroscope measurements
+    0x49-0x60   EXT_SENS_DATA      Auxiliary slave read results
+    0x63-0x67   I2C_SLV*_DO        Auxiliary slave writes and delays
+    0x68        SIGNAL_PATH_RESET  Per-sensor signal path resets
+    0x69        MOT_DETECT_CTRL    Motion detection timing
     0x6A        USER_CTRL          FIFO/aux master enables and resets
-    0x6B        PWR_MGMT_1         reset, sleep, cycle, clock select
-    0x6C        PWR_MGMT_2         wake-up rate, per-axis standby
-    0x72-0x73   FIFO_COUNT         bytes waiting in the FIFO
+    0x6B        PWR_MGMT_1         Reset, sleep, cycle, clock select
+    0x6C        PWR_MGMT_2         Wake-up rate, per-axis standby
+    0x72-0x73   FIFO_COUNT         Bytes waiting in the FIFO
     0x74        FIFO_R_W           FIFO read/write port
-    0x75        WHO_AM_I           identity; always reads 0x68
+    0x75        WHO_AM_I           Identity; always reads 0x68
 
 Every register resets to C<0x00> except C<PWR_MGMT_1> (C<0x40>,
 asleep) and C<WHO_AM_I> (C<0x68>).
