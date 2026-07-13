@@ -44,6 +44,55 @@ my %gyro_lsb  = (0 => 131, 1 => 65.5, 2 => 32.8, 3 => 16.4);
 
 # Public methods
 
+sub new {
+    my ($class, %args) = @_;
+
+    my $self = bless {}, $class;
+
+    if (defined $args{device} && ref $args{device}){
+        croak "device param must be a string, eg. '/dev/i2c-1'";
+    }
+
+    $self->{device} = defined $args{device} ? $args{device} : '/dev/i2c-1';
+
+    if (defined $args{addr} && ($args{addr} !~ /^\d+$/ || ($args{addr} != 0x68 && $args{addr} != 0x69))){
+        croak "addr param must be 0x68 (AD0 low) or 0x69 (AD0 high)";
+    }
+
+    $self->{addr} = defined $args{addr} ? $args{addr} : 0x68;
+
+    $self->{gyro_offsets}{$_} = 0 for qw(x y z);
+
+    my $i2c = eval { RPi::I2C->new($self->{addr}, $self->{device}); };
+
+    if (! defined $i2c){
+        croak sprintf(
+            "new() failed to open %s at addr 0x%02X: %s",
+            $self->{device},
+            $self->{addr},
+            defined $@ && $@ ne '' ? $@ : 'unknown error',
+        );
+    }
+
+    $self->{i2c} = $i2c;
+
+    $self->_chip_init;
+
+    if (defined $args{accel_range}){
+        $self->accel_range($args{accel_range});
+    }
+
+    if (defined $args{gyro_range}){
+        $self->gyro_range($args{gyro_range});
+    }
+
+    if (defined $args{gyro_offsets}){
+        $self->gyro_offsets($args{gyro_offsets});
+    }
+
+    return $self;
+}
+
 sub accel {
     my ($self, $axis) = @_;
 
@@ -179,54 +228,6 @@ sub gyro_range {
     $self->{gyro_lsb} = $gyro_lsb{$fs};
 
     return $gyro_dps{$fs};
-}
-sub new {
-    my ($class, %args) = @_;
-
-    my $self = bless {}, $class;
-
-    if (defined $args{device} && ref $args{device}){
-        croak "device param must be a string, eg. '/dev/i2c-1'";
-    }
-
-    $self->{device} = defined $args{device} ? $args{device} : '/dev/i2c-1';
-
-    if (defined $args{addr} && ($args{addr} !~ /^\d+$/ || ($args{addr} != 0x68 && $args{addr} != 0x69))){
-        croak "addr param must be 0x68 (AD0 low) or 0x69 (AD0 high)";
-    }
-
-    $self->{addr} = defined $args{addr} ? $args{addr} : 0x68;
-
-    $self->{gyro_offsets}{$_} = 0 for qw(x y z);
-
-    my $i2c = eval { RPi::I2C->new($self->{addr}, $self->{device}); };
-
-    if (! defined $i2c){
-        croak sprintf(
-            "new() failed to open %s at addr 0x%02X: %s",
-            $self->{device},
-            $self->{addr},
-            defined $@ && $@ ne '' ? $@ : 'unknown error',
-        );
-    }
-
-    $self->{i2c} = $i2c;
-
-    $self->_chip_init;
-
-    if (defined $args{accel_range}){
-        $self->accel_range($args{accel_range});
-    }
-
-    if (defined $args{gyro_range}){
-        $self->gyro_range($args{gyro_range});
-    }
-
-    if (defined $args{gyro_offsets}){
-        $self->gyro_offsets($args{gyro_offsets});
-    }
-
-    return $self;
 }
 sub register {
     my ($self, $reg, $value) = @_;
