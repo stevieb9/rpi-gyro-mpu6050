@@ -432,6 +432,11 @@ gyroscope/accelerometer over the I2C bus
 
     $mpu->calibrate_gyro;
 
+    # Powering down
+
+    $mpu->sleep;    # stop the sensors, ~10uA; registers and calibration kept
+    $mpu->wake;     # resume sampling
+
 =head1 DESCRIPTION
 
 Interface to the InvenSense MPU-6050, the ubiquitous 6-axis motion
