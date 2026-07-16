@@ -19,11 +19,20 @@ use constant {
     REG_TEMP_OUT        => 0x41,
     REG_GYRO_OUT        => 0x43,
     REG_PWR_MGMT_1      => 0x6B,
+    REG_PWR_MGMT_2      => 0x6C,
     REG_WHO_AM_I        => 0x75,
     WHO_AM_I_ID         => 0x68,
     PM1_DEVICE_RESET    => 0x80,
     PM1_SLEEP           => 0x40,
+    PM1_CYCLE           => 0x20,
     PM1_CLKSEL_PLL_X    => 0x01,
+    LP_WAKE_MASK        => 0xC0,   # PWR_MGMT_2 bits 7:6
+    STBY_XA             => 0x20,
+    STBY_YA             => 0x10,
+    STBY_ZA             => 0x08,
+    STBY_XG             => 0x04,
+    STBY_YG             => 0x02,
+    STBY_ZG             => 0x01,
     FS_SEL_MASK         => 0x18,
     FS_SEL_SHIFT        => 3,
     TEMP_LSB_PER_C      => 340,
@@ -41,6 +50,12 @@ my %accel_lsb = (0 => 16384, 1 => 8192, 2 => 4096, 3 => 2048);
 my %gyro_fs   = (250 => 0, 500 => 1, 1000 => 2, 2000 => 3);
 my %gyro_dps  = reverse %gyro_fs;
 my %gyro_lsb  = (0 => 131, 1 => 65.5, 2 => 32.8, 3 => 16.4);
+
+# CYCLE-mode wake rates: accel-sample frequency in Hz mapped to the
+# LP_WAKE_CTRL field already positioned in PWR_MGMT_2 bits 7:6
+
+my %lp_wake    = (1.25 => 0x00, 5 => 0x40, 20 => 0x80, 40 => 0xC0);
+my %lp_wake_hz = reverse %lp_wake;
 
 # Public methods
 
@@ -125,6 +140,10 @@ sub accel_range {
 
     return $accel_g{$fs};
 }
+sub accel_standby {
+    my ($self, $axes) = @_;
+    return $self->_axis_standby('accel', $axes);
+}
 sub calibrate_gyro {
     my ($self, $samples) = @_;
 
@@ -159,6 +178,35 @@ sub close {
     $self->{i2c} = undef;
 
     return 0;
+}
+sub cycle {
+    my ($self, $hz) = @_;
+
+    if (defined $hz){
+        if (! exists $lp_wake{$hz}){
+            croak "cycle() \$hz param must be one of "
+                . join(', ', sort { $a <=> $b } keys %lp_wake);
+        }
+
+        # Duty-cycled low-power accelerometer mode: with SLEEP clear and CYCLE
+        # set, the chip naps and wakes just long enough to take a single accel
+        # sample at the LP_WAKE_CTRL rate. The gyro axes go to standby (they
+        # aren't sampled here) - this is accelerometer-only, so gyro() and
+        # temp() read stale until wake()
+
+        my $pm1 = $self->_reg_read(REG_PWR_MGMT_1);
+        $self->_reg_write(REG_PWR_MGMT_1, (($pm1 & ~PM1_SLEEP) | PM1_CYCLE) & 0xFF);
+
+        my $pm2 = $self->_reg_read(REG_PWR_MGMT_2);
+        $pm2 = ($pm2 & ~LP_WAKE_MASK) | $lp_wake{$hz} | STBY_XG | STBY_YG | STBY_ZG;
+        $self->_reg_write(REG_PWR_MGMT_2, $pm2 & 0xFF);
+    }
+
+    # Read back: the accel-sample rate in Hz while cycling, or 0 if not cycling
+
+    return 0 if ! ($self->_reg_read(REG_PWR_MGMT_1) & PM1_CYCLE);
+
+    return $lp_wake_hz{ $self->_reg_read(REG_PWR_MGMT_2) & LP_WAKE_MASK };
 }
 sub deadband {
     my ($self, %args) = @_;
@@ -229,6 +277,10 @@ sub gyro_range {
 
     return $gyro_dps{$fs};
 }
+sub gyro_standby {
+    my ($self, $axes) = @_;
+    return $self->_axis_standby('gyro', $axes);
+}
 sub register {
     my ($self, $reg, $value) = @_;
 
@@ -292,9 +344,14 @@ sub tilt {
 sub wake {
     my ($self) = @_;
 
+    # Return to full normal operation from either sleep() or cycle(): clear
+    # both SLEEP and CYCLE in PWR_MGMT_1, and zero PWR_MGMT_2 so no axis is
+    # left in standby and the LP_WAKE_CTRL rate is cleared
+
     my $pm1 = $self->_reg_read(REG_PWR_MGMT_1);
 
-    $self->_reg_write(REG_PWR_MGMT_1, ($pm1 & ~PM1_SLEEP) & 0xFF);
+    $self->_reg_write(REG_PWR_MGMT_1, ($pm1 & ~(PM1_SLEEP | PM1_CYCLE)) & 0xFF);
+    $self->_reg_write(REG_PWR_MGMT_2, 0x00);
 
     return 0;
 }
@@ -306,6 +363,41 @@ sub DESTROY {
 
 # Private methods
 
+sub _axis_standby {
+    my ($self, $which, $axes) = @_;
+
+    # Shared read-modify-write for accel_standby()/gyro_standby(). Each sensor
+    # owns three STBY bits in PWR_MGMT_2; an axis list sets exactly those and
+    # clears the rest of that sensor's group. With no list, it just reads back
+
+    my %bit = $which eq 'accel'
+        ? (x => STBY_XA, y => STBY_YA, z => STBY_ZA)
+        : (x => STBY_XG, y => STBY_YG, z => STBY_ZG);
+
+    my $group = $bit{x} | $bit{y} | $bit{z};
+
+    if (defined $axes){
+        if (ref $axes ne 'ARRAY'){
+            croak "${which}_standby() requires an array reference of axes (x, y, z)";
+        }
+
+        my $set = 0;
+
+        for my $axis (@$axes){
+            if (! defined $axis || ! exists $bit{lc $axis}){
+                croak "${which}_standby() axis must be one of x, y, z";
+            }
+            $set |= $bit{lc $axis};
+        }
+
+        my $pm2 = $self->_reg_read(REG_PWR_MGMT_2);
+        $self->_reg_write(REG_PWR_MGMT_2, (($pm2 & ~$group) | $set) & 0xFF);
+    }
+
+    my $pm2 = $self->_reg_read(REG_PWR_MGMT_2);
+
+    return grep { $pm2 & $bit{$_} } qw(x y z);
+}
 sub _chip_init {
     my ($self) = @_;
 
@@ -435,7 +527,18 @@ gyroscope/accelerometer over the I2C bus
     # Powering down
 
     $mpu->sleep;    # stop the sensors, ~10uA; registers and calibration kept
-    $mpu->wake;     # resume sampling
+    $mpu->wake;     # back to full normal operation (also exits cycle mode)
+
+    # Duty-cycled low-power accelerometer: wake, sample, sleep, repeat. Draws
+    # microamps but still delivers periodic accel readings (gyro/temp are off)
+
+    $mpu->cycle(5); # sample the accelerometer at 5 Hz in low-power cycle mode
+    $mpu->wake;     # leave cycle mode
+
+    # Power individual axes down (eg. a single-axis application)
+
+    $mpu->gyro_standby(['x', 'y', 'z']);   # gyro off, accelerometer still live
+    $mpu->accel_standby(['z']);            # accel Z in standby
 
 =head1 DESCRIPTION
 
@@ -634,9 +737,59 @@ Takes no parameters. I<Returns>: C<0> upon success.
 
 =head2 wake
 
-Wakes the chip from sleep.
+Returns the chip to full normal operation from either L</sleep> or L</cycle>:
+clears the C<SLEEP> and C<CYCLE> bits and zeroes C<PWR_MGMT_2>, so no axis is
+left in standby and the cycle wake-rate is cleared.
 
 Takes no parameters. I<Returns>: C<0> upon success.
+
+=head2 cycle
+
+Gets or sets duty-cycled low-power accelerometer mode. In this mode the chip
+sleeps and wakes just long enough to take a single accelerometer sample at a
+fixed rate, dropping the average current from milliamps to microamps while
+still delivering periodic readings (unlike L</sleep>, which stops sensing
+entirely).
+
+I<Parameters>:
+
+    $hz
+
+I<Optional, Number>: The accelerometer sample rate, one of C<1.25>, C<5>,
+C<20> or C<40> Hz. Enabling cycle mode clears C<SLEEP>, sets C<CYCLE>, selects
+the rate, and puts the gyro axes into standby.
+
+B<Accelerometer only>: the gyroscope and temperature sensor are off while
+cycling, so L</gyro> and L</temp> return stale values until you call L</wake>.
+Croaks on an unsupported rate.
+
+I<Returns>: The current wake rate in Hz while cycling, or C<0> if cycle mode is
+off.
+
+=head2 accel_standby
+
+Gets or sets which accelerometer axes are held in standby (powered down) via
+C<PWR_MGMT_2>.
+
+I<Parameters>:
+
+    $axes
+
+I<Optional, Array reference>: The axes to place in standby, any of C<'x'>,
+C<'y'>, C<'z'>. The list is applied exactly - axes named go to standby, the
+rest of the accelerometer's axes are taken out of standby - so C<[]> clears
+all three. Omit the argument to just read the current state. Croaks on an axis
+other than x/y/z.
+
+I<Returns>: The list of accelerometer axes currently in standby.
+
+=head2 gyro_standby
+
+The gyroscope counterpart to L</accel_standby>: gets or sets which gyro axes
+(C<'x'>, C<'y'>, C<'z'>) are held in standby via C<PWR_MGMT_2>, with the same
+array-reference semantics.
+
+I<Returns>: The list of gyro axes currently in standby.
 
 =head2 reset
 

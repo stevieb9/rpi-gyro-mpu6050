@@ -23,3 +23,9 @@ Revision history for RPi-Gyro-MPU6050
       repaints only on real motion)
     - Documented sleep()/wake() in the SYNOPSIS (a "Powering down" block): sleep()
       drops the sensor to ~10uA keeping registers and calibration, wake() resumes
+    - Added cycle(), accel_standby() and gyro_standby(), wrapping the low-power
+      facilities that previously needed raw register(): cycle($hz) enables
+      duty-cycled low-power accelerometer mode (1.25/5/20/40 Hz) - microamps
+      with periodic accel samples, gyro/temp off; accel_standby()/gyro_standby()
+      hold individual axes in standby (PWR_MGMT_2). wake() now also clears CYCLE
+      and zeroes PWR_MGMT_2, so it is the single exit from sleep or cycle

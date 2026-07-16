@@ -22,7 +22,7 @@ BEGIN {
 
 use RPi::Gyro::MPU6050;
 
-plan tests => 36;
+plan tests => 54;
 
 my $mpu = RPi::Gyro::MPU6050->new;
 
@@ -131,6 +131,37 @@ ok MockI2C->peek(0x6B) & 0x40, "sleep() sets the SLEEP bit";
 $mpu->wake;
 
 is MockI2C->peek(0x6B), 0x01, "wake() clears SLEEP and keeps the PLL clock select";
+
+# --- cycle() low-power accelerometer mode ---
+
+is $mpu->cycle(5), 5, "cycle(5) enables cycle mode and returns the 5 Hz rate";
+ok MockI2C->peek(0x6B) & 0x20, "...CYCLE bit set in PWR_MGMT_1";
+ok ! (MockI2C->peek(0x6B) & 0x40), "...and SLEEP is clear";
+is MockI2C->peek(0x6C) & 0xC0, 0x40, "...LP_WAKE_CTRL selects 5 Hz in PWR_MGMT_2";
+is MockI2C->peek(0x6C) & 0x07, 0x07, "...all three gyro axes go to standby";
+
+is eval { $mpu->cycle(3); 1 }, undef, "cycle() croaks on an unsupported rate";
+like $@, qr/must be one of/, "...with a helpful message";
+
+$mpu->wake;
+is MockI2C->peek(0x6B), 0x01, "wake() clears CYCLE, keeping the PLL clock select";
+is MockI2C->peek(0x6C), 0x00, "wake() zeroes PWR_MGMT_2 (no standby, no wake-rate)";
+
+# --- accel_standby() / gyro_standby(): set exactly the axes named ---
+
+is_deeply [$mpu->accel_standby(['x', 'z'])], ['x', 'z'],
+    "accel_standby(['x','z']) puts those axes in standby";
+is MockI2C->peek(0x6C) & 0x38, 0x28, "...STBY_XA|STBY_ZA set, STBY_YA clear";
+
+is_deeply [$mpu->gyro_standby(['y'])], ['y'], "gyro_standby(['y']) sets the Y gyro axis";
+is MockI2C->peek(0x6C) & 0x07, 0x02, "...STBY_YG set, XG/ZG clear";
+
+is_deeply [$mpu->accel_standby([])], [], "accel_standby([]) clears the accel axes";
+is MockI2C->peek(0x6C) & 0x38, 0x00, "...all accel STBY bits cleared";
+is MockI2C->peek(0x6C) & 0x07, 0x02, "...and gyro standby is left untouched";
+
+is eval { $mpu->accel_standby(['q']); 1 }, undef, "accel_standby() croaks on a bad axis";
+like $@, qr/one of x, y, z/, "...with a helpful message";
 
 is $mpu->register(0x1A, 0x03), 3, "register() writes and returns the value";
 is $mpu->register(0x1A), 3, "register() reads it back";
